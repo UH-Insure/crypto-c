@@ -1,0 +1,10 @@
+.git
+.vscode
+.idea
+build
+dist
+*.o
+*.out
+*.a
+*.so
+*.dSYM

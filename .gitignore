@@ -1,0 +1,11 @@
+/build/
+/dist/
+*.o
+*.out
+*.exe
+*.a
+*.so
+*.dSYM
+.vscode/
+.idea/
+.DS_Store
