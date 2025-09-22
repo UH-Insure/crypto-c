@@ -43,20 +43,22 @@ static const uint8_t Si[256] = {
 
 static const uint8_t Rcon[10] = { 0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1B,0x36 };
 
+/* canonical GF(2^8) helpers */
 static inline uint8_t xtime(uint8_t x){ return (uint8_t)((x<<1) ^ ((x & 0x80) ? 0x1B : 0x00)); }
 static inline uint8_t mul2(uint8_t x){ return xtime(x); }
-static inline uint8_t mul3(uint8_t x){ return (uint8_t)(xtime(x) ^ x); }
-static inline uint8_t mul9(uint8_t x){ return (uint8_t)(xtime(xtime(xtime(x))) ^ x); }
-static inline uint8_t mul11(uint8_t x){ return (uint8_t)(xtime(xtime(xtime(x)) ^ x) ^ x); }
-static inline uint8_t mul13(uint8_t x){ return (uint8_t)(xtime(xtime(xtime(x) ^ x)) ^ x); }
-static inline uint8_t mul14(uint8_t x){ return (uint8_t)(xtime(xtime(xtime(x) ^ x) ) ^ x); }
+static inline uint8_t mul4(uint8_t x){ return xtime(xtime(x)); }
+static inline uint8_t mul8(uint8_t x){ return xtime(mul4(x)); }
+static inline uint8_t mul3(uint8_t x){ return (uint8_t)(mul2(x) ^ x); }
+static inline uint8_t mul9(uint8_t x){ return (uint8_t)(mul8(x) ^ x); }                 /* 0x09 */
+static inline uint8_t mul11(uint8_t x){ return (uint8_t)(mul8(x) ^ mul2(x) ^ x); }       /* 0x0B */
+static inline uint8_t mul13(uint8_t x){ return (uint8_t)(mul8(x) ^ mul4(x) ^ x); }       /* 0x0D */
+static inline uint8_t mul14(uint8_t x){ return (uint8_t)(mul8(x) ^ mul4(x) ^ mul2(x)); } /* 0x0E */
 
-/* Key schedule: produce 11 round keys (16B each) into ctx->rk */
+/* Key schedule: 11 round keys (16B) into ctx->rk */
 void aes128_set_key(aes128_ctx *ctx, const uint8_t key[16]){
     memcpy(ctx->rk[0], key, 16);
     uint8_t temp[4];
     for (int i=0;i<10;i++){
-        /* last word of previous round key */
         temp[0] = ctx->rk[i][12];
         temp[1] = ctx->rk[i][13];
         temp[2] = ctx->rk[i][14];
@@ -69,14 +71,14 @@ void aes128_set_key(aes128_ctx *ctx, const uint8_t key[16]){
         /* SubWord */
         temp[0]=S[temp[0]]; temp[1]=S[temp[1]]; temp[2]=S[temp[2]]; temp[3]=S[temp[3]];
 
-        /* Rcon */
+        /* Rcon on first byte */
         temp[0] ^= Rcon[i];
 
-        /* w0' = w0 ^ temp ; w1' = w1 ^ w0' ; w2' = w2 ^ w1' ; w3' = w3 ^ w2' */
-        for (int j=0;j<4;j++) ctx->rk[i+1][j]   = (uint8_t)(ctx->rk[i][j]   ^ temp[j]);
-        for (int j=4;j<8;j++) ctx->rk[i+1][j]   = (uint8_t)(ctx->rk[i][j]   ^ ctx->rk[i+1][j-4]);
-        for (int j=8;j<12;j++) ctx->rk[i+1][j]  = (uint8_t)(ctx->rk[i][j]   ^ ctx->rk[i+1][j-4]);
-        for (int j=12;j<16;j++) ctx->rk[i+1][j] = (uint8_t)(ctx->rk[i][j]   ^ ctx->rk[i+1][j-4]);
+        /* w0'..w3' */
+        for (int j=0;j<4;j++)   ctx->rk[i+1][j]    = (uint8_t)(ctx->rk[i][j]    ^ temp[j]);
+        for (int j=4;j<8;j++)   ctx->rk[i+1][j]    = (uint8_t)(ctx->rk[i][j]    ^ ctx->rk[i+1][j-4]);
+        for (int j=8;j<12;j++)  ctx->rk[i+1][j]    = (uint8_t)(ctx->rk[i][j]    ^ ctx->rk[i+1][j-4]);
+        for (int j=12;j<16;j++) ctx->rk[i+1][j]    = (uint8_t)(ctx->rk[i][j]    ^ ctx->rk[i+1][j-4]);
     }
 }
 
@@ -92,36 +94,41 @@ static inline void inv_sub_bytes(uint8_t s[16]){
     for (int i=0;i<16;i++) s[i] = Si[s[i]];
 }
 
+/* State is in column-major order: bytes at indices [0,4,8,12] are col 0, etc. */
 static inline void shift_rows(uint8_t s[16]){
     uint8_t t;
 
-    /* row 1 (indices 1,5,9,13): left rotate by 1 */
+    /* row1: indices (1,5,9,13), left rotate by 1 */
     t=s[1];  s[1]=s[5];  s[5]=s[9];  s[9]=s[13]; s[13]=t;
-    /* row 2 (2,6,10,14): left rotate by 2 */
-    t=s[2];  s[2]=s[10]; s[10]=t;    t=s[6];     s[6]=s[14]; s[14]=t;
-    /* row 3 (3,7,11,15): left rotate by 3 (== right by 1) */
-    t=s[3];  s[3]=s[15]; s[15]=s[11]; s[11]=s[7]; s[7]=t;
+
+    /* row2: (2,6,10,14), left rotate by 2 */
+    t=s[2]; s[2]=s[10]; s[10]=t;  t=s[6]; s[6]=s[14]; s[14]=t;
+
+    /* row3: (3,7,11,15), left rotate by 3 (== right by 1) */
+    t=s[3]; s[3]=s[15]; s[15]=s[11]; s[11]=s[7]; s[7]=t;
 }
 
 static inline void inv_shift_rows(uint8_t s[16]){
     uint8_t t;
 
-    /* row 1: right rotate by 1 */
+    /* row1: right rotate by 1 */
     t=s[13]; s[13]=s[9]; s[9]=s[5]; s[5]=s[1]; s[1]=t;
-    /* row 2: right rotate by 2 */
-    t=s[2];  s[2]=s[10]; s[10]=t;   t=s[6];    s[6]=s[14]; s[14]=t;
-    /* row 3: right rotate by 3 (== left by 1) */
-    t=s[3];  s[3]=s[7];  s[7]=s[11]; s[11]=s[15]; s[15]=t;
+
+    /* row2: right rotate by 2 (swap pairs) */
+    t=s[2]; s[2]=s[10]; s[10]=t;  t=s[6]; s[6]=s[14]; s[14]=t;
+
+    /* row3: right rotate by 3 (== left by 1) */
+    t=s[3]; s[3]=s[7]; s[7]=s[11]; s[11]=s[15]; s[15]=t;
 }
 
 static inline void mix_columns(uint8_t s[16]){
     for (int c=0;c<4;c++){
         int i = 4*c;
         uint8_t a0=s[i], a1=s[i+1], a2=s[i+2], a3=s[i+3];
-        s[i]   = (uint8_t)(mul2(a0) ^ mul3(a1) ^ a2 ^ a3);
-        s[i+1] = (uint8_t)(a0 ^ mul2(a1) ^ mul3(a2) ^ a3);
-        s[i+2] = (uint8_t)(a0 ^ a1 ^ mul2(a2) ^ mul3(a3));
-        s[i+3] = (uint8_t)(mul3(a0) ^ a1 ^ a2 ^ mul2(a3));
+        s[i]   = (uint8_t)(mul2(a0) ^ mul3(a1) ^ a2        ^ a3);
+        s[i+1] = (uint8_t)(a0       ^ mul2(a1) ^ mul3(a2)  ^ a3);
+        s[i+2] = (uint8_t)(a0       ^ a1       ^ mul2(a2)  ^ mul3(a3));
+        s[i+3] = (uint8_t)(mul3(a0) ^ a1       ^ a2        ^ mul2(a3));
     }
 }
 
@@ -160,7 +167,7 @@ void aes128_decrypt_block(const aes128_ctx *ctx, const uint8_t in[16], uint8_t o
     uint8_t s[16];
     memcpy(s, in, 16);
 
-    /* initial add round key (last round key) */
+    /* initial key addition with last round key */
     add_round_key(s, ctx->rk[10]);
 
     /* rounds 9..1: InvShiftRows → InvSubBytes → AddRoundKey → InvMixColumns */
@@ -171,7 +178,7 @@ void aes128_decrypt_block(const aes128_ctx *ctx, const uint8_t in[16], uint8_t o
         inv_mix_columns(s);
     }
 
-    /* final round (no InvMixColumns) */
+    /* final round: no InvMixColumns */
     inv_shift_rows(s);
     inv_sub_bytes(s);
     add_round_key(s, ctx->rk[0]);
