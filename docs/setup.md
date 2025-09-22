@@ -45,7 +45,7 @@ Colab does not support Docker, but you can use the provided script:
 First cell in a Colab notebook:
 
 ```python
-!git clone https://github.com/<your-user>/crypto-c.git
+!git clone https://github.com/plobethus/crypto-c.git
 %cd crypto-c
 !chmod +x scripts/colab_setup.sh
 !bash scripts/colab_setup.sh
