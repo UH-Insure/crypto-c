@@ -14,7 +14,9 @@ The project includes a `Dockerfile` that sets up an Ubuntu 22.04 container with 
 # For bash users
 chmod +x scripts/setup.sh
 ./scripts/setup.sh
+```
 
+```zsh
 # For zsh users
 chmod +x scripts/setup.zsh
 ./scripts/setup.zsh
