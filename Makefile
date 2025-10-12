@@ -1,7 +1,12 @@
 # -------- Toolchain --------
 CC      ?= cc
-CFLAGS  ?= -Wall -Wextra -O2 -g -std=c11 -Iinclude
+CFLAGS  ?= -Wall -Wextra -Wpedantic -O2 -g -std=c11 -Iinclude
 LDFLAGS ?=
+
+# -------- Feature toggles --------
+# Set these to 1 to include the DH and SIG sources/tests once they’re stable.
+ENABLE_DH  ?= 0
+ENABLE_SIG ?= 0
 
 # -------- Outputs / Dirs --------
 BUILD_DIR := build
@@ -13,31 +18,43 @@ TEST_DIR  := tests
 INC_DIR   := include
 
 # -------- Source discovery --------
-# All .c files under src/
 SRCS_ALL := $(shell find $(SRC_DIRS) -type f -name '*.c')
 
-# Exclude protocol files that depended on OpenSSL (keep them for later TODOs)
-EXCLUDE_SRCS := src/protocols/dh.c src/protocols/sig.c
-LIB_SRCS := $(filter-out $(EXCLUDE_SRCS),$(SRCS_ALL))
+# Base exclusions (OpenSSL-era); conditionally re-include when toggled on.
+EXCL_SRCS :=
 
-# Objects mirror tree into build/
+# Protocols
+ifeq ($(ENABLE_DH),0)
+  EXCL_SRCS += src/protocols/dh.c
+endif
+ifeq ($(ENABLE_SIG),0)
+  EXCL_SRCS += src/protocols/sig.c
+endif
+
+LIB_SRCS := $(filter-out $(EXCL_SRCS),$(SRCS_ALL))
 LIB_OBJS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(LIB_SRCS))
 
 # -------- Tests --------
 TEST_SRCS_ALL := $(shell find $(TEST_DIR) -maxdepth 1 -type f -name 'test_*.c')
 
-# Exclude tests that required OpenSSL-backed DH/SIG
-EXCLUDE_TESTS := $(TEST_DIR)/test_dh.c $(TEST_DIR)/test_sig.c
-TEST_SRCS := $(filter-out $(EXCLUDE_TESTS),$(TEST_SRCS_ALL))
+EXCL_TESTS :=
+ifeq ($(ENABLE_DH),0)
+  EXCL_TESTS += $(TEST_DIR)/test_dh.c
+endif
+ifeq ($(ENABLE_SIG),0)
+  EXCL_TESTS += $(TEST_DIR)/test_sig.c
+endif
+
+TEST_SRCS := $(filter-out $(EXCL_TESTS),$(TEST_SRCS_ALL))
 TEST_BINS := $(patsubst $(TEST_DIR)/%.c,$(BUILD_DIR)/%,$(TEST_SRCS))
 
 # -------- Phonies --------
-.PHONY: all lib test run-tests clean format
+.PHONY: all lib test run-tests clean format full
 
-# Default: build library and run tests
+# Default: build and run tests (with current toggles)
 all: test
 
-# Ensure build subdirs exist (mirror src tree)
+# Ensure build subdirs exist
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 	@mkdir -p $(BUILD_DIR)/src
@@ -66,10 +83,23 @@ test: lib $(TEST_BINS)
 $(BUILD_DIR)/%: $(TEST_DIR)/%.c $(LIB_PATH) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I$(INC_DIR) $< $(LIB_PATH) -o $@ $(LDFLAGS)
 
+# Convenience target: build + test with DH & SIG enabled
+full:
+	@$(MAKE) ENABLE_DH=1 ENABLE_SIG=1 clean
+	@$(MAKE) ENABLE_DH=1 ENABLE_SIG=1 test
+
 # -------- Utilities --------
+# Prefer clang-format-16; fall back to clang-format if not found.
 format:
-	@command -v clang-format-14 >/dev/null 2>&1 || { echo "clang-format-14 not found"; exit 0; }
-	@clang-format-14 -i $(SRCS_ALL) $(TEST_SRCS_ALL) $(INC_DIR)/**/*.h 2>/dev/null || true
+	@if command -v clang-format-16 >/dev/null 2>&1; then \
+		echo "Formatting with clang-format-16"; \
+		clang-format-16 -i $(SRCS_ALL) $(TEST_SRCS_ALL) $(INC_DIR)/**/*.h 2>/dev/null || true; \
+	elif command -v clang-format >/dev/null 2>&1; then \
+		echo "Formatting with clang-format"; \
+		clang-format -i $(SRCS_ALL) $(TEST_SRCS_ALL) $(INC_DIR)/**/*.h 2>/dev/null || true; \
+	else \
+		echo "clang-format not found; skipping format"; \
+	fi
 
 clean:
 	rm -rf $(BUILD_DIR)
