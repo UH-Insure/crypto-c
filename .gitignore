@@ -1,4 +1,5 @@
 /build/
+/verif/build/
 /dist/
 *.o
 *.out
@@ -9,3 +10,8 @@
 .vscode/
 .idea/
 .DS_Store
+
+
+
+flattener.py
+all_files.txt

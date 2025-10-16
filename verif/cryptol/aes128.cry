@@ -1,0 +1,7 @@
+
+module aes128 where
+
+import AES as AES  // In cryptol-specs, module is usually named AES
+
+aes128_enc : [16][8] -> [16][8] -> [16][8]
+aes128_enc k pt = AES::aesEncrypt k pt

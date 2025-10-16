@@ -1,0 +1,50 @@
+let bdir = "build";
+
+m1 <- llvm_load_module (bdir ++ "/sha_wrapper.bc");
+m2 <- llvm_load_module (bdir ++ "/sha256.bc");
+m  <- llvm_link_modules [m1, m2];
+
+let c_fn = llvm_symbol "sha256_once" m;
+
+let do_fallback = maybe (get_env "SPEC_FALLBACK") (\_ -> false) (\_ -> true);
+
+if do_fallback then {
+  print "SPEC_FALLBACK=1 → running SHA-256 KAT instead of Cryptol equivalence.";
+
+  # Empty string digest (e3b0...b855)
+  let msg = [] : [0][8];
+  let expected =
+    [0xE3,0xB0,0xC4,0x42,0x98,0xFC,0x1C,0x14,0x9A,0xFB,0xF4,0xC8,0x99,0x6F,0xB9,0x24,
+     0x27,0xAE,0x41,0xE4,0x64,0x9B,0x93,0x4C,0xA4,0x95,0x99,0x1B,0x78,0x52,0xB8,0x55] : [32][8];
+
+  # Allocate args
+  buf <- crucible_alloc (llvm_array 0 (llvm_int 8));
+  out <- crucible_alloc (llvm_array 32 (llvm_int 8));
+
+  _ <- crucible_exec_llvm_func c_fn [buf, (crucible_term {{ 0 : [64] }}), out];
+
+  got <- crucible_read_memory out (llvm_array 32 (llvm_int 8));
+  crucible_assert (got == (crucible_array (map (llvm_int 8) expected))) "SHA-256 empty-string KAT must match";
+
+  prove_print;
+} else {
+  print "Loading Cryptol SHA-256 spec...";
+  cryptol_path ["../external/cryptol-specs"];
+  cryptol_load "verif/cryptol/sha256.cry";
+
+  # Start with a fixed-size 64-byte buffer to keep constraints small
+  msg <- crucible_fresh_var "msg" (llvm_array 64 (llvm_int 8));
+  out <- crucible_alloc (llvm_array 32 (llvm_int 8));
+
+  _ <- crucible_exec_llvm_func c_fn [msg, (crucible_term {{ 64 : [64] }}), out];
+
+  # C output
+  c_out <- crucible_read_memory out (llvm_array 32 (llvm_int 8));
+
+  # Cryptol spec
+  let spec = {{ sha256::sha256 }};
+  s_out <- spec (crucible_term msg);
+
+  crucible_equal c_out (crucible_array (map (llvm_int 8) s_out));
+  prove_print;
+}
