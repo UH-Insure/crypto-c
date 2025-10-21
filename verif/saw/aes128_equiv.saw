@@ -1,27 +1,40 @@
-let bdir = "build";
+# SAW/Crucible equivalence for AES-128 (single-block ECB)
+# Runs either:
+#  - a Known Answer Test (KAT) when SPEC_FALLBACK is unset (default), or
+#  - a Cryptol equivalence proof when SPEC_FALLBACK is set to any value.
 
-m1 <- llvm_load_module (bdir ++ "/aes_wrapper.bc");
-m2 <- llvm_load_module (bdir ++ "/aes.bc");    # bring in real implementation for completeness
+# Load LLVM bitcode
+m1 <- llvm_load_module "build/aes_wrapper.bc";
+m2 <- llvm_load_module "build/aes.bc";
 m  <- llvm_link_modules [m1, m2];
 
-# Function under test
+# Function under test from the wrapper
 let c_fn = llvm_symbol "aes128_ecb_encrypt_one" m;
 
-# Try to load Cryptol spec unless SPEC_FALLBACK=1
-let do_fallback = maybe (get_env "SPEC_FALLBACK") (\_ -> false) (\_ -> true);
+# Decide mode based on environment variable
+mb <- get_env "SPEC_FALLBACK";
+let do_fallback =
+  case mb of
+    Just _  -> false;  # SPEC_FALLBACK present -> run Cryptol equivalence
+    Nothing -> true;   # default -> quick KAT smoke test
 
 if do_fallback then {
-  print "SPEC_FALLBACK=1 → running AES-128 KAT instead of Cryptol equivalence.";
 
-  # NIST FIPS-197 C.1 test vector
-  let key = [0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F] : [16][8];
-  let pt  = [0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88,0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF] : [16][8];
-  let ct_expected = [0x69,0xC4,0xE0,0xD8,0x6A,0x7B,0x04,0x30,0xD8,0xCD,0xB7,0x80,0x70,0xB4,0xC5,0x5A] : [16][8];
+  print "SPEC_FALLBACK not set → running AES-128 KAT (FIPS-197 C.1).";
 
-  # Allocate inputs/outputs
-  k  <- crucible_fresh_var "key" (llvm_array 16 (llvm_int 8));
-  p  <- crucible_fresh_var "pt"  (llvm_array 16 (llvm_int 8));
-  o  <- crucible_alloc (llvm_array 16 (llvm_int 8));  # output buffer
+  # NIST FIPS-197 App. C.1 vectors
+  let key = [0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07
+            ,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F] : [16][8];
+  let pt  = [0x00,0x11,0x22,0x33,0x44,0x55,0x66,0x77
+            ,0x88,0x99,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF] : [16][8];
+  let ct_expected =
+            [0x69,0xC4,0xE0,0xD8,0x6A,0x7B,0x04,0x30
+            ,0xD8,0xCD,0xB7,0x80,0x70,0xB4,0xC5,0x5A] : [16][8];
+
+  # Allocate inputs/outputs (as memory, not just terms)
+  k <- crucible_alloc (llvm_array 16 (llvm_int 8));
+  p <- crucible_alloc (llvm_array 16 (llvm_int 8));
+  o <- crucible_alloc (llvm_array 16 (llvm_int 8));
 
   crucible_points_to k (crucible_array (map (llvm_int 8) key));
   crucible_points_to p (crucible_array (map (llvm_int 8) pt));
@@ -29,27 +42,33 @@ if do_fallback then {
   _ <- crucible_exec_llvm_func c_fn [k, p, o];
 
   got <- crucible_read_memory o (llvm_array 16 (llvm_int 8));
-  crucible_assert (got == (crucible_array (map (llvm_int 8) ct_expected))) "AES-128 KAT must match";
+  crucible_assert (got == (crucible_array (map (llvm_int 8) ct_expected)))
+                  "AES-128 KAT must match expected ciphertext";
 
   prove_print;
+
 } else {
-  print "Loading Cryptol AES spec...";
-  cryptol_path ["../external/cryptol-specs"];     # adjust if your path differs
-  cryptol_load "verif/cryptol/aes128.cry";
 
-  # Shapes: [16][8] (16 bytes)
-  k  <- crucible_fresh_var "key" (llvm_array 16 (llvm_int 8));
-  p  <- crucible_fresh_var "pt"  (llvm_array 16 (llvm_int 8));
-  o  <- crucible_alloc (llvm_array 16 (llvm_int 8));
+  print "SPEC_FALLBACK set → running Cryptol equivalence for AES-128.";
+  # Cryptol library path and spec file (relative to /work/verif)
+  cryptol_path ["external/cryptol-specs"];
+  cryptol_load "cryptol/aes128.cry";
 
+  # Shape: [16][8] for key and plaintext; output also [16][8]
+  k <- crucible_alloc (llvm_array 16 (llvm_int 8));
+  p <- crucible_alloc (llvm_array 16 (llvm_int 8));
+  o <- crucible_alloc (llvm_array 16 (llvm_int 8));
+
+  # Leave key/plaintext unconstrained (symbolic) — SAW will prove equivalence
   _ <- crucible_exec_llvm_func c_fn [k, p, o];
 
   # Read C output
   c_out <- crucible_read_memory o (llvm_array 16 (llvm_int 8));
 
-  # Call Cryptol spec
+  # Call the Cryptol spec: aes128_enc : [16][8] -> [16][8] -> [16][8]
   let spec_enc = {{ aes128::aes128_enc }};
-  s_out <- spec_enc (crucible_term k) (crucible_term p);
+  s_out <- spec_enc (crucible_term (crucible_read_memory_term k (llvm_array 16 (llvm_int 8))))
+                    (crucible_term (crucible_read_memory_term p (llvm_array 16 (llvm_int 8))));
 
   crucible_equal c_out (crucible_array (map (llvm_int 8) s_out));
   prove_print;
