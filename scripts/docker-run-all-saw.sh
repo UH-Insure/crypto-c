@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMG="${1:-crypto-c-dev:clang14}"   # or whatever tag you already build
+IMG="${1:-crypto-c-dev:clang14}"   
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Inside-container steps
 INSIDE='
   set -euo pipefail
   cd /work/verification
@@ -17,7 +16,7 @@ INSIDE='
   done
 '
 
-# If you use podman, you can swap docker->podman; flags are the same for this
+
 docker run --rm -it \
   -v "$ROOT":/work \
   -w /work \
