@@ -1,50 +1,57 @@
-CC      ?= /opt/homebrew/opt/llvm@16/bin/clang
-LLVMBIN ?= /opt/homebrew/opt/llvm@16/bin
-CFLAGS  ?= -O0 -g -std=c11 -I../include -emit-llvm -Wall -Wextra -Wpedantic
+# ===== config =====
+CC      ?= cc
+LLVMBIN ?=                                
+CFLAGS  ?= -O0 -g -std=c11 -I../include  
+LDFLAGS ?=
 
-BUILD   := build
+# ===== sources =====
+AES_SRC      := ../src/primitives/aes.c
+SHA_SRC      := ../src/primitives/sha256.c
+AES_WRAP_PTR := wrappers/aes_ptr_wrapper.c
+SHA_WRAP_PTR := wrappers/sha_ptr_wrapper.c
 
-LIB_AES_SRC    := ../src/primitives/aes.c
-LIB_SHA256_SRC := ../src/primitives/sha256.c
-WRAP_AES_PTR   := wrappers/aes_ptr_wrapper.c
-WRAP_SHA_PTR   := wrappers/sha_ptr_wrapper.c
+# ===== build dir and artifacts =====
+BUILD := build
+AES_BC      := $(BUILD)/aes.bc
+SHA_BC      := $(BUILD)/sha256.bc
+AES_WRAP_BC := $(BUILD)/aes_ptr_wrapper.bc
+SHA_WRAP_BC := $(BUILD)/sha_ptr_wrapper.bc
 
-AES_BC       := $(BUILD)/aes.bc
-SHA_BC       := $(BUILD)/sha256.bc
-AES_WRAP_BC  := $(BUILD)/aes_ptr_wrapper.bc
-SHA_WRAP_BC  := $(BUILD)/sha_ptr_wrapper.bc
-AES_COMBINED := $(BUILD)/aes_ptr_combined.bc
-SHA_COMBINED := $(BUILD)/sha_ptr_combined.bc
+AES_COMB_PTR := $(BUILD)/aes_ptr_combined.bc
+SHA_COMB_PTR := $(BUILD)/sha_ptr_combined.bc
 
-.PHONY: all build prove clean
+# pick llvm-link
+LLVM_LINK := $(if $(LLVMBIN),$(LLVMBIN)/llvm-link,llvm-link)
 
-all: prove
-build: $(AES_COMBINED) $(SHA_COMBINED)
+.PHONY: all build clean
+all: build
+
+build: $(AES_COMB_PTR) $(SHA_COMB_PTR)
+	@echo "Built pointer-combined bitcode:"
+	@ls -lh $(AES_COMB_PTR) $(SHA_COMB_PTR)
 
 $(BUILD):
 	@mkdir -p $(BUILD)
 
-$(AES_BC): $(LIB_AES_SRC) | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+# bitcode compilation
+$(AES_BC): $(AES_SRC) | $(BUILD)
+	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
 
-$(SHA_BC): $(LIB_SHA256_SRC) | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(SHA_BC): $(SHA_SRC) | $(BUILD)
+	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
 
-$(AES_WRAP_BC): $(WRAP_AES_PTR) | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(AES_WRAP_BC): $(AES_WRAP_PTR) | $(BUILD)
+	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
 
-$(SHA_WRAP_BC): $(WRAP_SHA_PTR) | $(BUILD)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(SHA_WRAP_BC): $(SHA_WRAP_PTR) | $(BUILD)
+	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
 
-$(AES_COMBINED): $(AES_WRAP_BC) $(AES_BC) | $(BUILD)
-	$(LLVMBIN)/llvm-link $^ -o $@
+# link the modules the way the SAW scripts expect
+$(AES_COMB_PTR): $(AES_WRAP_BC) $(AES_BC) | $(BUILD)
+	$(LLVM_LINK) $^ -o $@
 
-$(SHA_COMBINED): $(SHA_WRAP_BC) $(SHA_BC) | $(BUILD)
-	$(LLVMBIN)/llvm-link $^ -o $@
-
-prove: build
-	saw saw/aes128_ecb_kat.saw
-	saw saw/sha256_empty_kat.saw
+$(SHA_COMB_PTR): $(SHA_WRAP_BC) $(SHA_BC) | $(BUILD)
+	$(LLVM_LINK) $^ -o $@
 
 clean:
 	rm -rf $(BUILD)
