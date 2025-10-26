@@ -1,0 +1,18 @@
+enable_experimental;
+m <- llvm_load_module "../build/sha_ptr_combined.bc";
+let spec : LLVMSetup () = do {
+  buf <- llvm_alloc (llvm_array 0 (llvm_int 8));
+  out <- llvm_alloc (llvm_array 32 (llvm_int 8));
+  llvm_execute_func [buf, (llvm_term {{ 0 : [64] }}), out];
+  llvm_points_to out (llvm_array_value [
+    (llvm_term {{0xE3:[8]}}),(llvm_term {{0xB0:[8]}}),(llvm_term {{0xC4:[8]}}),(llvm_term {{0x42:[8]}}),
+    (llvm_term {{0x98:[8]}}),(llvm_term {{0xFC:[8]}}),(llvm_term {{0x1C:[8]}}),(llvm_term {{0x14:[8]}}),
+    (llvm_term {{0x9A:[8]}}),(llvm_term {{0xFB:[8]}}),(llvm_term {{0xF4:[8]}}),(llvm_term {{0xC8:[8]}}),
+    (llvm_term {{0x99:[8]}}),(llvm_term {{0x6F:[8]}}),(llvm_term {{0xB9:[8]}}),(llvm_term {{0x24:[8]}}),
+    (llvm_term {{0x27:[8]}}),(llvm_term {{0xAE:[8]}}),(llvm_term {{0x41:[8]}}),(llvm_term {{0xE4:[8]}}),
+    (llvm_term {{0x64:[8]}}),(llvm_term {{0x9B:[8]}}),(llvm_term {{0x93:[8]}}),(llvm_term {{0x4C:[8]}}),
+    (llvm_term {{0xA4:[8]}}),(llvm_term {{0x95:[8]}}),(llvm_term {{0x99:[8]}}),(llvm_term {{0x1B:[8]}}),
+    (llvm_term {{0x78:[8]}}),(llvm_term {{0x52:[8]}}),(llvm_term {{0xB8:[8]}}),(llvm_term {{0x55:[8]}})
+  ]);
+};
+llvm_verify m "sha256_once" [] false spec z3;

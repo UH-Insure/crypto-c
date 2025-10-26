@@ -1,0 +1,34 @@
+enable_experimental;
+
+m <- llvm_load_module "../build/aes_ptr_combined.bc";
+
+let spec : LLVMSetup () = do {
+  k <- llvm_alloc (llvm_array 16 (llvm_int 8));
+  p <- llvm_alloc (llvm_array 16 (llvm_int 8));
+  o <- llvm_alloc (llvm_array 16 (llvm_int 8));
+
+  llvm_points_to k (llvm_array_value [
+    (llvm_term {{0x00:[8]}}),(llvm_term {{0x01:[8]}}),(llvm_term {{0x02:[8]}}),(llvm_term {{0x03:[8]}}),
+    (llvm_term {{0x04:[8]}}),(llvm_term {{0x05:[8]}}),(llvm_term {{0x06:[8]}}),(llvm_term {{0x07:[8]}}),
+    (llvm_term {{0x08:[8]}}),(llvm_term {{0x09:[8]}}),(llvm_term {{0x0A:[8]}}),(llvm_term {{0x0B:[8]}}),
+    (llvm_term {{0x0C:[8]}}),(llvm_term {{0x0D:[8]}}),(llvm_term {{0x0E:[8]}}),(llvm_term {{0x0F:[8]}})
+  ]);
+
+  llvm_points_to p (llvm_array_value [
+    (llvm_term {{0x00:[8]}}),(llvm_term {{0x11:[8]}}),(llvm_term {{0x22:[8]}}),(llvm_term {{0x33:[8]}}),
+    (llvm_term {{0x44:[8]}}),(llvm_term {{0x55:[8]}}),(llvm_term {{0x66:[8]}}),(llvm_term {{0x77:[8]}}),
+    (llvm_term {{0x88:[8]}}),(llvm_term {{0x99:[8]}}),(llvm_term {{0xAA:[8]}}),(llvm_term {{0xBB:[8]}}),
+    (llvm_term {{0xCC:[8]}}),(llvm_term {{0xDD:[8]}}),(llvm_term {{0xEE:[8]}}),(llvm_term {{0xFF:[8]}})
+  ]);
+
+  llvm_execute_func [k, p, o];
+
+  llvm_points_to o (llvm_array_value [
+    (llvm_term {{0x69:[8]}}),(llvm_term {{0xC4:[8]}}),(llvm_term {{0xE0:[8]}}),(llvm_term {{0xD8:[8]}}),
+    (llvm_term {{0x6A:[8]}}),(llvm_term {{0x7B:[8]}}),(llvm_term {{0x04:[8]}}),(llvm_term {{0x30:[8]}}),
+    (llvm_term {{0xD8:[8]}}),(llvm_term {{0xCD:[8]}}),(llvm_term {{0xB7:[8]}}),(llvm_term {{0x80:[8]}}),
+    (llvm_term {{0x70:[8]}}),(llvm_term {{0xB4:[8]}}),(llvm_term {{0xC5:[8]}}),(llvm_term {{0x5A:[8]}})
+  ]);
+};
+
+llvm_verify m "aes128_ecb_encrypt_one" [] false spec z3;

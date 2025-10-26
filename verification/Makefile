@@ -1,33 +1,24 @@
-# Toolchain (override CC/LLVMBIN from env if you prefer)
 CC      ?= /opt/homebrew/opt/llvm@16/bin/clang
 LLVMBIN ?= /opt/homebrew/opt/llvm@16/bin
-
 CFLAGS  ?= -O0 -g -std=c11 -I../include -emit-llvm -Wall -Wextra -Wpedantic
 
 BUILD   := build
 
-# library sources we compile to bitcode
 LIB_AES_SRC    := ../src/primitives/aes.c
 LIB_SHA256_SRC := ../src/primitives/sha256.c
-
-# pointer wrappers you keep in this repo
 WRAP_AES_PTR   := wrappers/aes_ptr_wrapper.c
 WRAP_SHA_PTR   := wrappers/sha_ptr_wrapper.c
 
-AES_BC         := $(BUILD)/aes.bc
-SHA_BC         := $(BUILD)/sha256.bc
-AES_WRAP_BC    := $(BUILD)/aes_ptr_wrapper.bc
-SHA_WRAP_BC    := $(BUILD)/sha_ptr_wrapper.bc
-
-AES_COMBINED   := $(BUILD)/aes_ptr_combined.bc
-SHA_COMBINED   := $(BUILD)/sha_ptr_combined.bc
-
-SAW_SCRIPTS    := saw/aes128_ecb_kat.saw saw/sha256_empty_kat.saw
+AES_BC       := $(BUILD)/aes.bc
+SHA_BC       := $(BUILD)/sha256.bc
+AES_WRAP_BC  := $(BUILD)/aes_ptr_wrapper.bc
+SHA_WRAP_BC  := $(BUILD)/sha_ptr_wrapper.bc
+AES_COMBINED := $(BUILD)/aes_ptr_combined.bc
+SHA_COMBINED := $(BUILD)/sha_ptr_combined.bc
 
 .PHONY: all build prove clean
 
 all: prove
-
 build: $(AES_COMBINED) $(SHA_COMBINED)
 
 $(BUILD):

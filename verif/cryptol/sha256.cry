@@ -1,6 +1,0 @@
-module sha256 where
-
-import SHA256 as Ref
-
-sha256 : [inf][8] -> [32][8]
-sha256 = Ref::sha256
