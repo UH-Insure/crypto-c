@@ -5,14 +5,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 # --- Toolchain: Clang/LLVM 16 ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates wget curl gnupg lsb-release software-properties-common \
-  && wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
-  && echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main" \
-        > /etc/apt/sources.list.d/llvm16.list \
-  && apt-get update && apt-get install -y --no-install-recommends \
+ && curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
+    | gpg --dearmor -o /usr/share/keyrings/llvm.gpg \
+ && echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main" \
+    > /etc/apt/sources.list.d/llvm16.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
       clang-16 clang-tools-16 clang-format-16 lldb-16 lld-16 \
-      libc++-16-dev libc++abi-16-dev \
+      llvm-16 libc++-16-dev libc++abi-16-dev \
       build-essential cmake git bash zsh \
-  && rm -rf /var/lib/apt/lists/*
+ && ln -s /usr/bin/llvm-link-16 /usr/bin/llvm-link \
+ && rm -rf /var/lib/apt/lists/*
 
 # Make clang-16 default cc/c++
 RUN update-alternatives --install /usr/bin/cc  cc  /usr/bin/clang-16    100 && \

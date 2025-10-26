@@ -1,57 +1,60 @@
-# ===== config =====
-CC      ?= cc
-LLVMBIN ?=                                
-CFLAGS  ?= -O0 -g -std=c11 -I../include  
-LDFLAGS ?=
+# === verification/Makefile (clean) ===
 
-# ===== sources =====
-AES_SRC      := ../src/primitives/aes.c
-SHA_SRC      := ../src/primitives/sha256.c
-AES_WRAP_PTR := wrappers/aes_ptr_wrapper.c
-SHA_WRAP_PTR := wrappers/sha_ptr_wrapper.c
+# Toolchain
+CC       ?= cc
+LLVMBIN  ?= llvm-link
+CFLAGS   ?= -O0 -g -std=c11 -I../include -emit-llvm
 
-# ===== build dir and artifacts =====
-BUILD := build
-AES_BC      := $(BUILD)/aes.bc
-SHA_BC      := $(BUILD)/sha256.bc
-AES_WRAP_BC := $(BUILD)/aes_ptr_wrapper.bc
-SHA_WRAP_BC := $(BUILD)/sha_ptr_wrapper.bc
+# Paths
+BUILD_DIR := build
 
-AES_COMB_PTR := $(BUILD)/aes_ptr_combined.bc
-SHA_COMB_PTR := $(BUILD)/sha_ptr_combined.bc
+# Sources
+AES_LIB_SRC := ../src/primitives/aes.c
+SHA_LIB_SRC := ../src/primitives/sha256.c
+AES_WRAP    := wrappers/aes_ptr_wrapper.c
+SHA_WRAP    := wrappers/sha_ptr_wrapper.c
 
-# pick llvm-link
-LLVM_LINK := $(if $(LLVMBIN),$(LLVMBIN)/llvm-link,llvm-link)
+# Outputs
+AES_BC_LIB      := $(BUILD_DIR)/aes.bc
+SHA_BC_LIB      := $(BUILD_DIR)/sha256.bc
+AES_BC_WRAP     := $(BUILD_DIR)/aes_ptr_wrapper.bc
+SHA_BC_WRAP     := $(BUILD_DIR)/sha_ptr_wrapper.bc
+AES_BC_COMBINED := $(BUILD_DIR)/aes_ptr_combined.bc
+SHA_BC_COMBINED := $(BUILD_DIR)/sha_ptr_combined.bc
 
-.PHONY: all build clean
-all: build
+# Default: build combined bitcode
+all: $(AES_BC_COMBINED) $(SHA_BC_COMBINED)
 
-build: $(AES_COMB_PTR) $(SHA_COMB_PTR)
-	@echo "Built pointer-combined bitcode:"
-	@ls -lh $(AES_COMB_PTR) $(SHA_COMB_PTR)
+# Ensure build/ exists once, use order-only prerequisite
+$(BUILD_DIR):
+	@mkdir -p $(BUILD_DIR)
 
-$(BUILD):
-	@mkdir -p $(BUILD)
+# Compile to bitcode
+$(AES_BC_LIB): $(AES_LIB_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# bitcode compilation
-$(AES_BC): $(AES_SRC) | $(BUILD)
-	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
+$(SHA_BC_LIB): $(SHA_LIB_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(SHA_BC): $(SHA_SRC) | $(BUILD)
-	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
+$(AES_BC_WRAP): $(AES_WRAP) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(AES_WRAP_BC): $(AES_WRAP_PTR) | $(BUILD)
-	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
+$(SHA_BC_WRAP): $(SHA_WRAP) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(SHA_WRAP_BC): $(SHA_WRAP_PTR) | $(BUILD)
-	$(CC) $(CFLAGS) -emit-llvm -c $< -o $@
+# Link wrappers+libs
+$(AES_BC_COMBINED): $(AES_BC_WRAP) $(AES_BC_LIB) | $(BUILD_DIR)
+	$(LLVMBIN) $^ -o $@
 
-# link the modules the way the SAW scripts expect
-$(AES_COMB_PTR): $(AES_WRAP_BC) $(AES_BC) | $(BUILD)
-	$(LLVM_LINK) $^ -o $@
+$(SHA_BC_COMBINED): $(SHA_BC_WRAP) $(SHA_BC_LIB) | $(BUILD_DIR)
+	$(LLVMBIN) $^ -o $@
 
-$(SHA_COMB_PTR): $(SHA_WRAP_BC) $(SHA_BC) | $(BUILD)
-	$(LLVM_LINK) $^ -o $@
+# Run the two SAW proofs that live here
+run-saw: all
+	@echo "[*] Running SAW in verification/saw"
+	@saw saw/aes128_ecb_kat.saw
+	@saw saw/sha256_empty_kat.saw
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD_DIR)
+.PHONY: all run-saw clean
