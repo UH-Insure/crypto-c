@@ -1,0 +1,4 @@
+module Primitive::Symmetric::Cipher::Block::Modes::Instantiations::AES128_CTR =
+    Primitive::Symmetric::Cipher::Block::Modes::CTR {
+        Primitive::Symmetric::Cipher::Block::AES::Instantiations::AES128
+    }

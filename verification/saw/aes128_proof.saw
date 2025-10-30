@@ -1,0 +1,57 @@
+/**
+ * AES128 functional equivalence proof — modern SAW 1.3+ syntax
+ */
+enable_deprecated;
+enable_experimental;
+print "=== AES128 Proof ===";
+
+/* Load LLVM and Cryptol */
+cryptol_path_add "/work/external/cryptol_specs";
+bc  <- llvm_load_module "/work/verification/build/aes.bc";
+cry <- cryptol_load "/work/verification/specs/aes128.cry";
+
+/* Extract Cryptol AES128 function */
+aes_spec <- cryptol_extract cry "AES128Encrypt";
+
+/* Define LLVM types */
+let llvm_i8 = llvm_int 8;
+
+/* Verification setup */
+llvm_verify bc "aes128_encrypt_block"
+  []                      // No preconditions
+  false                   // Don't assume false
+  (\setup -> do {
+      /* Allocate symbolic data */
+      key <- llvm_alloc (llvm_array 16 llvm_i8);
+      pt  <- llvm_alloc (llvm_array 16 llvm_i8);
+      ctx <- llvm_alloc (llvm_array 11 (llvm_array 16 llvm_i8));
+
+      /* Call aes128_set_key first */
+      llvm_execute_func "aes128_set_key" [ctx, key];
+
+      /* Then call aes128_encrypt_block */
+      out_c <- llvm_execute_func "aes128_encrypt_block" [ctx, pt];
+
+      /* Load symbolic byte arrays */
+      key_bytes <- llvm_array_load key;
+      pt_bytes  <- llvm_array_load pt;
+
+      let key_bits = concat (map (zero_extend 8) key_bytes);
+      let pt_bits  = concat (map (zero_extend 8) pt_bytes);
+      let out_spec = aes_spec key_bits pt_bits;
+
+      /* Return outputs to be checked */
+      return out_c;
+  })
+  (\_ out_c -> do {
+      /* Match result with Cryptol spec */
+      key_bytes <- llvm_array_load "key";
+      pt_bytes  <- llvm_array_load "pt";
+      let key_bits = concat (map (zero_extend 8) key_bytes);
+      let pt_bits  = concat (map (zero_extend 8) pt_bytes);
+      let out_spec = aes_spec key_bits pt_bits;
+      llvm_points_to out_c out_spec;
+  })
+  (prove_z3 []);
+
+print "=== AES128 Proof completed successfully ===";

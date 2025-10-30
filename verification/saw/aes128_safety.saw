@@ -1,0 +1,18 @@
+enable_experimental;
+
+m <- llvm_load_module "../build/aes_ptr_combined.bc";
+
+// Minimal safety: allocate valid memory and call the function
+let spec : LLVMSetup () = do {
+  key <- llvm_alloc (llvm_array 16 (llvm_int 8));
+  pt  <- llvm_alloc (llvm_array 16 (llvm_int 8));
+  out <- llvm_alloc (llvm_array 16 (llvm_int 8));
+
+  // Just call it — the goal is that it executes without UB
+  llvm_execute_func [key, pt, out];
+
+  // Verify that 'out' is still a valid 16-byte array
+  llvm_points_to out (llvm_array_value (replicate 16 (llvm_term {{0 : [8]}})));
+};
+
+llvm_verify m "aes128_ecb_encrypt_one" [] false spec z3;

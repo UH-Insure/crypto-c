@@ -1,0 +1,47 @@
+module AES where
+
+import AES::Algorithm as AES where
+  type Mode = m
+  encRound = AESRound
+  decRound = AESInvRound
+
+import AES::ExpandKey where
+  type Nk = AES::Nk
+  type Nr = AES::Nr
+
+import AES::TBox
+
+parameter
+  /** 0: AES128, 1: AES192, 2: AES256 */
+  type m : #
+  type k : #
+  type constraint (k == 128 + m * 64, 2 >= m)
+
+type EncKey = AES::KeySchedule
+type DecKey = AES::KeySchedule
+
+
+encrypt : [k] -> [128] -> [128]
+encrypt k = encryptWithSchedule (expandKeyEnc k)
+
+decrypt : [k] -> [128] -> [128]
+decrypt k = decryptWithSchedule (expandKeyDec k)
+
+
+expandKeyEnc : [k] -> EncKey
+expandKeyEnc = expandKey
+
+encryptWithSchedule : EncKey -> [128] -> [128]
+encryptWithSchedule = AES::encrypt
+
+
+
+expandKeyDec : [k] -> EncKey
+expandKeyDec k = makeDecKey (expandKey k)
+
+decryptWithSchedule : DecKey -> [128] -> [128]
+decryptWithSchedule = AES::decrypt
+
+
+property test k pt = decrypt k (encrypt k pt) == pt
+

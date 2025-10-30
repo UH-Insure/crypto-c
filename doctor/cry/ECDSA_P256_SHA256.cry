@@ -1,0 +1,5 @@
+module Primitive::Asymmetric::Signature::ECDSA::Instantiations::ECDSA_P256_SHA256 =
+    Primitive::Asymmetric::Signature::ECDSA::Specification {
+        EC = Common::EC::PrimeField::Instantiations::P256,
+        Hash = Primitive::Keyless::Hash::SHA2::Instantiations::SHA256
+    }

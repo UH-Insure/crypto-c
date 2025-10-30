@@ -1,0 +1,14 @@
+x = [True, False]
+y = [False, True]
+z = x + y
+
+property p1 = z == 3
+
+xx = [[True,False]]
+yy = [[False, True]]
+zz = xx + yy
+
+
+
+t : {a} [a*3] -> [a*3][a*3]
+t d = zero

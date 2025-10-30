@@ -1,0 +1,6 @@
+module Common::ByteArray where
+
+import Array
+
+type ByteArray = Array[64][8]
+

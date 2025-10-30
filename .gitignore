@@ -15,3 +15,8 @@
 
 flattener.py
 all_files.txt
+
+#unecessary to keep all the broken saw/cryptol files in the repo
+/doctor/cry/.
+/doctor/saw/.
+/doctor/failed.jsonl

@@ -1,0 +1,6 @@
+module Primitive::Symmetric::Cipher::Block::Cipher where
+
+type Cipher KeySize BlockSize =
+  { encrypt : [KeySize] -> [BlockSize] -> [BlockSize]
+  , decrypt : [KeySize] -> [BlockSize] -> [BlockSize]
+  }

@@ -1,0 +1,15 @@
+module sha256 where
+
+// SHA-256 hash function specification
+// Using the canonical specification from cryptol-specs:
+//
+// import CryptolSpecs.Hash.SHA256 (sha256)
+//
+// Type definitions:
+type Byte      = [8]
+type Message   = [inf][Byte]   // unbounded sequence of bytes
+type Digest256 = [256]
+
+// Hash spec: compute SHA-256 digest of a message
+sha256 : Message -> Digest256
+sha256 msg = CryptolSpecs.Hash.SHA256::sha256 msg

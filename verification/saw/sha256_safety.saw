@@ -1,0 +1,16 @@
+enable_experimental;
+
+m <- llvm_load_module "../build/sha_ptr_combined.bc";
+
+// Minimal safety check
+let spec : LLVMSetup () = do {
+  buf <- llvm_alloc (llvm_array 64 (llvm_int 8));   // input
+  out <- llvm_alloc (llvm_array 32 (llvm_int 8));   // output
+
+  llvm_execute_func [buf, (llvm_term {{64 : [64]}}), out];
+
+  // Assert output memory exists (not UB)
+  llvm_points_to out (llvm_array_value (replicate 32 (llvm_term {{0 : [8]}})));
+};
+
+llvm_verify m "sha256_once" [] false spec z3;

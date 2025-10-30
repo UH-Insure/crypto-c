@@ -1,0 +1,4 @@
+module Primitive::Symmetric::Cipher::Block::Modes::Instantiations::AES256_CBC =
+    Primitive::Symmetric::Cipher::Block::Modes::CBC {
+        Primitive::Symmetric::Cipher::Block::AES::Instantiations::AES256
+    }

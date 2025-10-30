@@ -1,0 +1,79 @@
+/*
+Implementation of the algorithms from the paper
+  "Automated Analysis and Synthesis of Authenticated Encryption Schemes"
+  by Viet Tung Hoang, Jonathan Katz, and Alex J. Malozemoff
+*/
+module AE where
+
+parameter
+  type A : *            type K : *            type n : #            type p : #            type tagAmount : #
+
+  type constraint (fin p, fin n, n >= tagAmount)
+
+  // Process a single block using this key and tweak
+  tweak_cipher : K -> { nonce : [n], state : A, z : [64] } -> [n] -> [n]
+
+  // Cost for using the tweak
+  Cost : [64]
+
+  Enc : K -> { nonce : [n], state : A, z : [64] }
+          -> { message : [p*n], state : [p*n] }
+          -> { message : [p*n], state : [p*n] }
+  Dec : K -> { nonce : [n], state : A, z : [64] }
+          -> { message : [p*n], state : [p*n] }
+          -> { message : [p*n], state : [p*n] }
+  Tag : K -> { nonce : [n], state : A, z : [64] } -> [p*n] -> [n]
+
+// The unit at which `Enc` operates
+type Node       = { message : WorkBlock, state : State }
+
+// Some encryption schemes process multiple blocks at once
+type WorkBlock  = [p*n]
+
+type State      = [p*n]  // The state for `p` blocks
+
+type Tweak      = { nonce : Nonce, state : A, z : Int }
+type Nonce      = [n]
+
+/*
+property
+
+  // The tweak in the `i`th query to the tweak_cipher
+  tweak_prop i { nonce = n, state = a, z = v } =
+               { nonce = n, state = a, z = v + i - 1 }
+
+
+  // Property of decrypt
+  Dec_prop : Tweak -> Node -> Bit
+  Dec_prop t { message = m, state = x } =
+       Dec t { message = c, state = x } == { message = m, state = y }
+       where { message = c, state = y } = Enc t x m
+*/
+
+type Int = [64]
+
+encrypt :
+  {m} fin m => K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
+encrypt key nonce state inputMsg = encMsg # tag
+
+  where
+  encMsg = join rest.0.message
+
+  tag = take (Tag key (tweak (1 - final.1)) final.0.state)
+
+  final = steps ! 0
+
+  steps = [ ({ message = undefined, state = zero }, 1) ] # rest
+  rest  = [ (Enc key (tweak v) { message = m, state = prev.state }, v + Cost)
+          | (prev,v) <- steps
+          | m        <- chunks
+          ]
+
+  // XXX: isn't v i  just 1 + i * Cost
+
+  chunks : [m] [p * n]
+  chunks = split inputMsg
+
+  tweak : Int -> Tweak
+  tweak v = { nonce = nonce, state = state, z = v }
+

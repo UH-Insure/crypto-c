@@ -1,0 +1,22 @@
+/*
+
+NIST P-192 Elliptic Curve defined in [FIPS-186-5].
+
+Also standardized as "secp192r1" in [SEC2-v2] Section 2.2.2.
+
+⚠️ Warning ⚠️: This curve is deprecated and should not be used to proactively
+secure new data! It should only be used to decrypt or verify previously
+encrypted data.
+
+@copyright Galois, Inc
+@author Max Orhai
+
+*/
+
+module Common::EC::PrimeField::Instantiations::P192 =
+       Common::EC::PrimeField::PFEC where
+type P = 6277101735386680763835789423207666416083908700390324961279
+type n' =  6277101735386680763835789423176059013767194773182842284081
+b  = `0x64210519e59c80e70fa7e9ab72243049feb8deecc146b9b1
+Gx = `0x188da80eb03090f67cbf20eb43a18800f4ff0afd82ff1012
+Gy = `0x07192b95ffc8da78631011ed6b24cdd573f977a11e794811

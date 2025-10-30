@@ -6,7 +6,7 @@ This file describes how to build and run the Crypto-AR-C repository in different
 
 ## 1. Docker/Podman Setup
 
-The project includes a `Dockerfile` that sets up an Ubuntu 22.04 container with **Clang 14** and build tools.
+The project includes a `Dockerfile` that sets up an Ubuntu 22.04 container with Clang 16, cryptol, saw, and all dependencies. The docker file is specified for x86 NOT ARM 
 
 ### Build and Run
 
@@ -76,6 +76,7 @@ make format     # Auto-format code (requires clang-format-14)
 
 ## Notes
 
-* **Compiler**: Clang-14 is enforced to keep builds reproducible.
+* **Compiler**: Clang-16 is enforced to keep builds reproducible.
 * **Randomness**: Uses `/dev/urandom` inside Linux containers.
 * **Dependencies**: Entire project is written in pure C, no OpenSSL required.
+

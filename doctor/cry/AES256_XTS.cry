@@ -1,0 +1,5 @@
+module Primitive::Symmetric::Cipher::Block::Modes::Instantiations::AES256_XTS =
+    Primitive::Symmetric::Cipher::Block::Modes::XTS {
+        Primitive::Symmetric::Cipher::Block::AES::Instantiations::AES256
+    }
+

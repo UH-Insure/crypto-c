@@ -1,0 +1,6 @@
+module aes128 where
+
+import Primitive::Symmetric::Cipher::Block::AES::Instantiations::AES128
+
+AES128Encrypt : [128] -> [128] -> [128]
+AES128Encrypt key pt = encrypt pt key

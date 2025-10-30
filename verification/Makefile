@@ -1,8 +1,8 @@
 # === verification/Makefile (clean) ===
 
 # Toolchain
-CC       ?= cc
-LLVMBIN  ?= llvm-link
+CC       ?= clang-16
+LLVMBIN  ?= llvm-link-16
 CFLAGS   ?= -O0 -g -std=c11 -I../include -emit-llvm
 
 # Paths

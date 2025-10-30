@@ -1,0 +1,5 @@
+module Primitive::Symmetric::Cipher::Block::Modes::Instantiations::AES256_KeyWrap =
+    Primitive::Symmetric::Cipher::Block::Modes::AESKeyWrap {
+        Primitive::Symmetric::Cipher::Block::AES::Instantiations::AES256
+    }
+
